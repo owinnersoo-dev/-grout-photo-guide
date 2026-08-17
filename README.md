@@ -1,1 +1,1 @@
-# -grout-photo-guide
+# grout-photo-guide
