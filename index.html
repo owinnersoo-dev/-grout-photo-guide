@@ -33,13 +33,24 @@
 .capture-title{font-size:15px;font-weight:900;margin-top:3px}
 .capture-guide{font-size:12px;color:var(--sub);margin-top:4px}
 .capture-area{
-  min-height:220px;background:#eff3f1;display:flex;align-items:center;justify-content:center;
-  position:relative;cursor:pointer;overflow:hidden
+  min-height:220px;background:#eff3f1;display:block;
+  position:relative;cursor:pointer;overflow:hidden;padding:0;
 }
-.capture-area img{width:100%;height:100%;min-height:220px;object-fit:cover;display:block}
-.capture-placeholder{text-align:center;padding:25px;color:#60716b}
-.capture-placeholder .cam{font-size:34px}
-.capture-placeholder b{display:block;margin-top:7px;color:#315f52}
+.capture-area img{
+  width:100%;height:100%;min-height:220px;object-fit:cover;
+  display:block;position:relative;z-index:2;background:#eff3f1;
+}
+.capture-area img[hidden],
+.capture-area img[src=""],
+.capture-area img:not([src]){display:none !important}
+.capture-placeholder{
+  position:absolute;inset:0;z-index:1;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:22px;color:#60716b;gap:6px;
+}
+.capture-placeholder .cam{font-size:34px;line-height:1}
+.capture-placeholder b{display:block;margin-top:0;color:#315f52;font-size:18px;line-height:1.35}
+.capture-placeholder span{display:block;font-size:13px;line-height:1.5;max-width:240px}
 .capture-actions{display:flex;gap:7px;padding:10px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
 .capture-actions button{
   border:1px solid #d7ddd9;background:#fff;border-radius:9px;padding:7px 9px;font-size:12px;font-weight:700;color:#34423d
@@ -69,8 +80,22 @@
 }
 @media(max-width:700px){
   .capture-grid,.product-facts{grid-template-columns:1fr}
-  .capture-area,.capture-area img{min-height:240px}
-  .capture-dashboard{top:5px}
+  .capture-dashboard{top:5px;padding:12px 14px}
+  .capture-dashboard .row{align-items:flex-start}
+  .capture-dashboard strong{font-size:15px}
+  .capture-dashboard button{font-size:13px;padding:8px 9px}
+  .capture-card{border-radius:16px}
+  .capture-head{padding:12px}
+  .capture-title{font-size:20px;line-height:1.35}
+  .capture-guide{font-size:14px;line-height:1.55}
+  .capture-area,.capture-area img{min-height:260px}
+  .capture-placeholder{padding:18px}
+  .capture-placeholder b{font-size:17px}
+  .capture-placeholder span{font-size:13px;max-width:220px}
+  .capture-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .capture-actions button{width:100%;padding:10px 8px;font-size:15px}
+  .capture-caption{padding:0 12px 12px}
+  .capture-caption textarea{min-height:84px;font-size:14px}
 }
 
 </style>
@@ -836,13 +861,24 @@
   function show(card, blob){
     const img=card.querySelector('img'), ph=card.querySelector('.capture-placeholder');
     if(img.dataset.url) URL.revokeObjectURL(img.dataset.url);
-    const u=URL.createObjectURL(blob); img.src=u; img.dataset.url=u; img.hidden=false; ph.hidden=true;
-    card.classList.add('done'); updateProgress();
+    const u=URL.createObjectURL(blob);
+    img.onerror=()=>{ clearCard(card); };
+    img.src=u;
+    img.dataset.url=u;
+    img.hidden=false;
+    ph.hidden=true;
+    card.classList.add('done');
+    updateProgress();
   }
   function clearCard(card){
     const img=card.querySelector('img'), ph=card.querySelector('.capture-placeholder');
     if(img.dataset.url) URL.revokeObjectURL(img.dataset.url);
-    img.src=''; img.hidden=true; delete img.dataset.url; ph.hidden=false; card.classList.remove('done'); updateProgress();
+    img.removeAttribute('src');
+    img.hidden=true;
+    delete img.dataset.url;
+    ph.hidden=false;
+    card.classList.remove('done');
+    updateProgress();
   }
   function updateProgress(){
     const done=cards.filter(c=>c.classList.contains('done')).length;
