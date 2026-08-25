@@ -47,8 +47,10 @@ textarea{min-height:90px;resize:vertical}.draft{min-height:520px;line-height:1.8
 .shot-actions label{background:#fff;border:1px solid var(--line)}.shot-actions button{border:1px solid #efceca;background:#fff3f2;color:var(--danger)}
 .shot-card textarea{border-radius:0;border-width:1px 0 0;min-height:74px}
 .shot-tip{padding:0 11px 10px;color:var(--muted);font-size:11px}
-.add-shot-wrap{display:flex;justify-content:center;margin:10px 0 3px}
-.add-shot-btn{background:#fff;border:1px dashed #bdb2aa;color:#5d554f;width:100%;max-width:420px}
+.add-shot-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 3px}
+.add-shot-btn{background:#fff;border:1px dashed #bdb2aa;color:#5d554f;width:100%;max-width:none}
+.bulk-shot-input{display:none}
+@media(max-width:700px){.add-shot-wrap{grid-template-columns:1fr}}
 .custom-title{border-radius:0;border-width:1px 0 0;font-weight:800}
 .modebox{background:var(--soft);border:1px solid #ccebd8;border-radius:13px;padding:12px 13px;font-size:13px;margin-bottom:12px}
 .preview{white-space:pre-wrap;background:#fbfbfb;border:1px solid var(--line);border-radius:13px;padding:15px;min-height:110px}
@@ -154,7 +156,7 @@ textarea{min-height:90px;resize:vertical}.draft{min-height:520px;line-height:1.8
 
 <section class="card">
 <h2>4. 줄눈 상세 사진 촬영 기록</h2>
-<p class="hint">현재 집 백시멘트 → 새집 BEFORE → 제품 → 시공 과정 → AFTER 순서입니다. 각 항목마다 <strong>사진 촬영 / 사진 보관함 / 사진 삭제 / 사진 메모</strong>를 사용할 수 있고 필요한 사진 항목도 직접 추가할 수 있습니다.</p>
+<p class="hint">현재 집 백시멘트 → 새집 BEFORE → 제품 → 시공 과정 → AFTER 순서입니다. 각 항목마다 <strong>사진 촬영 / 사진 보관함 / 사진 삭제 / 사진 메모</strong>를 사용할 수 있고, 필요한 경우 <strong>추가 사진 항목</strong>을 만들거나 <strong>여러 장을 한 번에 선택해서 자동 추가</strong>할 수 있습니다.</p>
 <div class="photo-dashboard">
   <div class="progress-card">
     <div class="progress-top"><strong>📸 촬영 진행률</strong><span id="photoProgress">0/0</span></div>
@@ -279,6 +281,18 @@ function clean(s){return String(s??'').trim()}
 function stars(n){n=Number(n)||0;return '★'.repeat(n)+'☆'.repeat(5-n)}
 function status(msg){$('status').textContent=msg;clearTimeout(status.t);status.t=setTimeout(()=>$('status').textContent='',2800)}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function makeBulkShotTitle(file,index){
+ const name=clean((file?.name||'').replace(/\.[^.]+$/,''));
+ return name || `추가 사진 ${index+1}`;
+}
+async function saveShotPhotoOnly(shot,file){
+ if(!file||!file.type.startsWith('image/'))return;
+ const src=await compressImage(file);
+ const rec=shotData[shot.id]||{id:shot.id};
+ rec.src=src;
+ shotData[shot.id]=rec;
+ await saveShotRecord(rec);
+}
 function splitMemo(text){return clean(text).split(/\n|,|·|\/|\|/).map(v=>v.trim()).filter(Boolean)}
 function stripEnd(s){return clean(s).replace(/[.!?~。！？]+$/,'')}
 function naturalize(item){
@@ -344,7 +358,14 @@ function renderShotGroups(){
   const addWrap=document.createElement('div');addWrap.className='add-shot-wrap';
   const add=document.createElement('button');add.type='button';add.className='add-shot-btn';add.textContent=`＋ ${group.title}에 사진 항목 추가`;
   add.onclick=()=>addCustomShot(group.id,group.title);
-  addWrap.appendChild(add);sec.append(title,grid,addWrap);root.appendChild(sec);
+
+  const bulk=document.createElement('button');bulk.type='button';bulk.className='add-shot-btn';bulk.textContent=`🖼 ${group.title}에 여러 장 한 번에 추가`;
+
+  const bulkInput=document.createElement('input');bulkInput.type='file';bulkInput.accept='image/*';bulkInput.multiple=true;bulkInput.className='bulk-shot-input';
+  bulk.onclick=()=>bulkInput.click();
+  bulkInput.onchange=e=>{handleBulkAddFiles(group.id,group.title,Array.from(e.target.files||[]));e.target.value=''};
+
+  addWrap.append(add,bulk,bulkInput);sec.append(title,grid,addWrap);root.appendChild(sec);
  });
  updatePhotoProgress();
 }
@@ -392,6 +413,31 @@ function addCustomShot(groupId,groupTitle){
  const custom=getCustomGroups();if(!custom[groupId])custom[groupId]=[];
  custom[groupId].push({id:'CUS-'+uid(),title:clean(title),hint:'직접 추가한 촬영 항목',custom:true});
  saveCustomGroups(custom);renderShotGroups();status('새 사진 촬영 항목을 추가했습니다.');
+}
+
+async function handleBulkAddFiles(groupId,groupTitle,files){
+ const imageFiles=(files||[]).filter(f=>f&&String(f.type||'').startsWith('image/'));
+ if(!imageFiles.length)return;
+
+ const custom=getCustomGroups();
+ if(!custom[groupId])custom[groupId]=[];
+
+ const createdShots=imageFiles.map((file,index)=>{
+  const shot={id:'CUS-'+uid(),title:makeBulkShotTitle(file,index),hint:'여러 장 선택으로 추가한 촬영 항목',custom:true};
+  custom[groupId].push(shot);
+  return {shot,file};
+ });
+
+ saveCustomGroups(custom);
+ renderShotGroups();
+ status(`${groupTitle} 사진 ${createdShots.length}장 추가 중...`);
+
+ for(const item of createdShots){
+  await saveShotPhotoOnly(item.shot,item.file);
+ }
+
+ renderShotGroups();
+ status(`${groupTitle} 사진 ${createdShots.length}장을 한 번에 추가했습니다.`);
 }
 function renameCustomShot(groupId,id,title){
  const custom=getCustomGroups();const arr=custom[groupId]||[];const found=arr.find(x=>x.id===id);
